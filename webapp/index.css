@@ -1,0 +1,39 @@
+#videos {
+    display: flex;
+    justify-content: center;
+}
+
+#videos > * {
+    margin: 0 0.5rem;
+}
+
+#info-box {
+    display: flex;
+    justify-content: center;
+    padding: 2rem;
+}
+
+#options {
+    display: flex;
+}
+
+#options > div {
+    margin: 0 1rem;
+}
+
+#options label {
+    margin-left: 0.5rem;
+}
+
+#stats-group {
+    display: flex;
+}
+
+#stats {
+    margin: 0 1rem;
+    /* flex-grow: 1; */
+}
+
+#timeplot {
+    flex-grow: 1;
+}
