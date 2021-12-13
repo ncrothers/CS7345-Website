@@ -7,6 +7,17 @@ const PADDING = 0;
 class JS_ConvolutionProcessor {
     constructor() {
         this.loadFilters();
+    
+        for (let f = 0; f < this.m_numFilters; f++) {
+            let filter = this.m_filters[f];
+            console.log(filter.getFilterName() + ":");
+            for (let row = 0; row < filter.getFilterSize(); row++) {
+                for (let col = 0; col < filter.getFilterSize()-1; col++) {
+                    console.log(filter.getValue(row, col) + ",");
+                }
+                console.log(filter.getValue(row, filter.getFilterSize()-1));
+            }
+        }
     }
     
     getNumFilters() {
@@ -33,19 +44,18 @@ class JS_ConvolutionProcessor {
     }
     
     processImage(image, imageWidth, imageHeight, numChannels, filterNames) {
-        let tempImage = new Uint8ClampedArray(imageWidth*imageHeight*4);
-        tempImage.set(image, 0);
+        let tempImage = new Float32Array(imageWidth*imageHeight*4);
         
         for (let i = 0; i < this.m_numFilters; i++) {
             let mask = 1 << i;
             if ((mask & filterNames) == mask) {
                 let filter = this.m_filters[i];
-                this.convolve(image, tempImage, imageWidth, imageHeight, numChannels, 0, imageHeight, filter);
+                this.convolve(image, tempImage, imageWidth, imageHeight, numChannels, 0, imageHeight, 0, imageWidth, filter);
             }
         }
     }
     
-    convolve(image, tempImage, imageWidth, imageHeight, numChannels, rowStart, rowEnd, filter) {
+    convolve(image, tempImage, imageWidth, imageHeight, numChannels, rowStart, rowEnd, colStart, colEnd, filter) {
     
         let numChannelsToProcess = numChannels;
     
@@ -55,11 +65,20 @@ class JS_ConvolutionProcessor {
         }
     
         let filterSize = filter.getFilterSize();
+
+        // Used for normalizing, no longer needed but kept for now
+        let minPixels = new Array(numChannelsToProcess);
+        let maxPixels = new Array(numChannelsToProcess);
+    
+        for (let i = 0; i < numChannelsToProcess; i++) {
+            minPixels[i] = 300;
+            maxPixels[i] = -1;
+        }
     
         // For every row in the given range
         for (let imageRow = rowStart; imageRow < rowEnd; imageRow++) {
             // For every column in the given range
-            for (let imageCol = 0; imageCol < imageWidth; imageCol++) {
+            for (let imageCol = colStart; imageCol < colEnd; imageCol++) {
                 // For each channel in the image
                 // 1-4 for multiplication later, not 0-3
                 // Skip alpha channel
@@ -90,26 +109,52 @@ class JS_ConvolutionProcessor {
                                 let filterValue = filter.getValue(filterRow, filterCol);
                                 // Calculating the index for the current filter pixel
                                 let pixelValue = image[(imageRow+filterRowOffset)*imageWidth*4 + ((imageCol+filterColOffset)*4 + c)];
-                                sum += filterValue * pixelValue;
+                                sum += filterValue * (pixelValue/255);
                             }
                         }
                     }
-
-                    if (sum < 0) sum = 0;
-                    if (sum > 255) sum = 255;
-
-                    let index = imageRow*imageWidth*4 + (imageCol*4 + c);
-
-                    tempImage[index] = sum;
-                    if (numChannelsToProcess == 1) {
-                        tempImage[index+1] = sum;
-                        tempImage[index+2] = sum;
+                    if (sum < minPixels[c]) {
+                        minPixels[c] = sum;
                     }
+                    if (sum > maxPixels[c]) {
+                        maxPixels[c] = sum;
+                    }
+                    tempImage[imageRow*imageWidth*4 + (imageCol*4 + c)] = sum;
                 }
             }
         }
     
-        image.set(tempImage);
+        let p = 0;
+    
+        while (p < imageWidth*imageHeight*4) {
+            let channel = 0;
+            if (numChannels == 4) {
+                channel = p % 4;
+                if (channel == 3) {
+                    image[p] = 255;
+                    p++;
+                    continue;
+                }
+            }
+    
+            // Old normalizing code
+            // let ratio = 1 / (maxPixels[channel]-minPixels[channel]);
+            // let newVal = (tempImage[p]-minPixels[channel])*ratio;
+            let newVal = tempImage[p];
+            if (newVal < 0) newVal = 0;
+            if (newVal > 1) newVal = 1;
+            image[p] = Math.floor(255*newVal);
+    
+            if (numChannels == 4) {
+                p++;
+            }
+            else {
+                image[p+1] = Math.floor(255*newVal);
+                image[p+2] = Math.floor(255*newVal);
+                image[p+3] = 255;
+                p += 4;
+            }
+        }
     }
     
     loadFilters() {

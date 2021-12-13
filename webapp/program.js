@@ -4,7 +4,6 @@ var filtersToProcess = 0;
 var numChannels = 4;
 var filterArray = [];
 var useWasm = true;
-var useMultithreading = false;
 
 var displayTimingIndex = 0;
 var displayTimingLength = 30;
@@ -14,26 +13,6 @@ var dataTiming = [];
 var dataTimingIndex = 0;
 const dataTimingTotal = 1000;
 var isDataTiming = false;
-
-function buildCheckbox(id, labelText, value, checked=false) {
-    let div = document.createElement("div");
-    let checkbox = document.createElement("input");
-    let label = document.createElement("label");
-    
-    checkbox.setAttribute("type", "checkbox");
-    checkbox.setAttribute("id", id);
-    checkbox.setAttribute("value", value)
-    checkbox.checked = checked;
-    checkbox.addEventListener("change", updateSettings);
-    
-    label.setAttribute("for", id);
-    label.innerText = labelText;
-    
-    div.appendChild(checkbox);
-    div.appendChild(label);
-
-    return div;
-}
 
 function buildInterface() {
     let processor = new Module.ConvolutionProcessor("filters.txt");
@@ -54,12 +33,25 @@ function buildInterface() {
     // =====================
 
     for (let i = 0; i < numFilters; i++) {
-        const filterName = processor.getFilterName(i).trim();
+        let div = document.createElement("div");
+        let checkbox = document.createElement("input");
+        let label = document.createElement("label");
+        
+        const filterName = processor.getFilterName(i);
+        
+        checkbox.setAttribute("type", "checkbox");
+        checkbox.setAttribute("id", filterName+"-filter");
+        checkbox.setAttribute("value", ""+i)
+        checkbox.addEventListener("change", updateSettings);
         filterArray.push(filterName+"-filter");
-
-        let div = buildCheckbox(filterName+"-filter", filterName, ""+i);
+        
+        label.setAttribute("for", filterName+"-filter");
+        label.innerText = filterName;
+        
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        
         filtersDiv.appendChild(div);
-
     }
     
     filtersDiv.appendChild(document.createElement("br"));
@@ -78,27 +70,44 @@ function buildInterface() {
     // Add grayscale checkbox
     // =====================
 
-    let grayscaleDiv = buildCheckbox("grayscale", "Grayscale", "grayscale");
-
-    optionsDiv.appendChild(grayscaleDiv);
+    let div = document.createElement("div");
+    let checkbox = document.createElement("input");
+    let label = document.createElement("label");
+    
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.setAttribute("id", "grayscale");
+    checkbox.setAttribute("value", "grayscale")
+    checkbox.addEventListener("change", updateSettings);
+    
+    label.setAttribute("for", "grayscale");
+    label.innerText = "grayscale";
+    
+    div.appendChild(checkbox);
+    div.appendChild(label);
+    
+    optionsDiv.appendChild(div);
 
     // =====================
     // Add Wasm checkbox
     // =====================
     
-    let wasmDiv = buildCheckbox("wasm", "Use WASM", "wasm", true);
-
-    optionsDiv.appendChild(wasmDiv);
-
-    options.appendChild(optionsDiv);
+    div = document.createElement("div");
+    checkbox = document.createElement("input");
+    label = document.createElement("label");
     
-    // =====================
-    // Add multithreading checkbox
-    // =====================
+    checkbox.setAttribute("type", "checkbox");
+    checkbox.setAttribute("id", "wasm");
+    checkbox.setAttribute("value", "wasm")
+    checkbox.addEventListener("change", updateSettings);
+    checkbox.checked = true;
     
-    let multithreadingDiv = buildCheckbox("multithreading", "Use Multithreading", "multithreading");
-
-    optionsDiv.appendChild(multithreadingDiv);
+    label.setAttribute("for", "wasm");
+    label.innerText = "use WASM";
+    
+    div.appendChild(checkbox);
+    div.appendChild(label);
+    
+    optionsDiv.appendChild(div);
 
     options.appendChild(optionsDiv);
     
@@ -145,18 +154,6 @@ function updateSettings() {
     }
 
     useWasm = document.getElementById("wasm").checked;
-
-    let multithreading = document.getElementById("multithreading");
-    if (!useWasm) {
-        multithreading.checked = false;
-        useMultithreading = false;
-        multithreading.setAttribute("disabled", "true");
-    }
-    else {
-        multithreading.removeAttribute("disabled");
-    }
-
-    useMultithreading = multithreading.checked;
 }
 
 function runProgram() {
@@ -214,22 +211,8 @@ function addTiming(time) {
                 csvContent += element + "\r\n";
             });
 
-            let filename = "";
-            filename += useWasm ? "wasm" : "js";
-            filename += numChannels == 1 ? "_grayscale" : "_color";
-            filename += document.getElementById(filterArray[2]).checked ? "_5" : "_3";
-            filename += useMultithreading ? "_multi" : "_single";
-            filename += ".csv";
-
-            var element = document.createElement('a');
-            element.setAttribute('href', encodeURI(csvContent));
-            element.setAttribute('download', filename);
-          
-            element.style.display = 'none';
-            document.body.appendChild(element);
-          
-            element.click();
-            document.body.removeChild(element);
+            let encodedUri = encodeURI(csvContent);
+            window.open(encodedUri);
         }
     }
 }
@@ -277,19 +260,15 @@ function startConvolutions() {
 
             if (useWasm) {
                 if (numChannels == 1) {
-                    processor.imageToGrayscale(outputPtr, len, useMultithreading);
+                    processor.imageToGrayscale(outputPtr, len);
                 }
-                if (filtersToProcess > 0) {
-                    processor.processImage(outputPtr, width, height, numChannels, filtersToProcess, useMultithreading);
-                }
+                processor.processImage(outputPtr, width, height, numChannels, filtersToProcess);
             }
             else {
                 if (numChannels == 1) {
                     processorJS.imageToGrayscale(output, len);
                 }
-                if (filtersToProcess > 0) {
-                    processorJS.processImage(output, width, height, numChannels, filtersToProcess);
-                }
+                processorJS.processImage(output, width, height, numChannels, filtersToProcess);
             }
 
             let end = performance.now();
@@ -297,7 +276,11 @@ function startConvolutions() {
             addTiming(end-start);
             document.getElementById("timing-avg").innerText = getTimingAvg();
 
-            context.putImageData(new ImageData(new Uint8ClampedArray(output), width, height), 0, 0);
+            context.putImageData(new ImageData(output, width, height), 0, 0);
         }
     }, 0);
 }
+
+
+
+runProgram();
