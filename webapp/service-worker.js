@@ -1,39 +1,25 @@
-/**
- * Welcome to your Workbox-powered service worker!
- *
- * You'll need to register this file in your web app and you should
- * disable HTTP caching for this file too.
- * See https://goo.gl/nhQhGp
- *
- * The rest of the code is auto-generated. Please don't update this file
- * directly; instead, make changes to your Workbox build configuration
- * and re-run your build process.
- * See https://goo.gl/2aRDsh
- */
-
-importScripts("https://storage.googleapis.com/workbox-cdn/releases/4.3.1/workbox-sw.js");
-
-importScripts(
-  "/CS7345-Website/precache-manifest.e1081c4a1256be26b09a693a8a1be5f5.js"
-);
-
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-});
-
-workbox.core.clientsClaim();
-
-/**
- * The workboxSW.precacheAndRoute() method efficiently caches and responds to
- * requests for URLs in the manifest.
- * See https://goo.gl/S9QRab
- */
-self.__precacheManifest = [].concat(self.__precacheManifest || []);
-workbox.precaching.precacheAndRoute(self.__precacheManifest, {});
-
-workbox.routing.registerNavigationRoute(workbox.precaching.getCacheKeyForURL("/CS7345-Website/index.html"), {
+self.addEventListener("fetch", function (event) {
+    if (event.request.cache === "only-if-cached" && event.request.mode !== "same-origin") {
+      return;
+    }
   
-  blacklist: [/^\/_/,/\/[^/?]+\.[^/]+$/],
+    event.respondWith(
+      fetch(event.request)
+        .then(function (response) {
+          const newHeaders = new Headers(response.headers);
+          newHeaders.set("Cross-Origin-Embedder-Policy", "require-corp");
+          newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+  
+          const moddedResponse = new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders,
+          });
+  
+          return moddedResponse;
+        })
+        .catch(function (e) {
+          console.error(e);
+        })
+    );
 });
